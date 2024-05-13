@@ -1,6 +1,6 @@
-from functions.stock_checker import app
+from functions.hermes_profiler import app
 
 
-def test_stock_checker():
+def test_hermes_profiler():
     data = app.lambda_handler(None, "")
     assert 0 <= data["stock_price"] <= 100

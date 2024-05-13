@@ -28,6 +28,13 @@ Resources:
             TableName: !Ref DynamoDBTable
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt SNSTopic.TopicName
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref DynamoDBTable
+          API_GATEWAY_REGION1: !If [DeployToRegion1, !Ref APIGatewayRegion1, ""]
+          API_GATEWAY_REGION2: !If [DeployToRegion2, !Ref APIGatewayRegion2, ""]
+          AWS_REGION: !Ref "AWS::Region"
+          SNS_TOPIC_ARN: !Ref SNSTopic
 
   APIGatewayInvokeRole:
     Type: AWS::IAM::Role
