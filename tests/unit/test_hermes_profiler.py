@@ -13,8 +13,15 @@ class TestHermesProfiler(unittest.TestCase):
 
         self.dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
         self.sns = boto3.client('sns', region_name='us-west-2')
+        self.sqs = boto3.client('sqs', region_name='us-west-2')
         self.table_name = 'test-table'
-        self.topic_arn = 'arn:aws:sns:us-west-2:123456789012:test-topic'
+        # self.topic_arn = 'arn:aws:sns:us-west-2:123456789012:test-topic'try:
+        try:
+            self.table = self.dynamodb.Table(self.table_name)
+            self.table.delete()
+            self.table.wait_until_not_exists()
+        except self.dynamodb.meta.client.exceptions.ResourceNotFoundException:
+            pass
 
         self.table = self.dynamodb.create_table(
             TableName=self.table_name,
@@ -31,6 +38,11 @@ class TestHermesProfiler(unittest.TestCase):
 
         self.topic = self.sns.create_topic(Name='test-topic')
         self.topic_arn = self.topic['TopicArn']
+        self.sqs_url = self.sqs.create_queue(QueueName='test')["QueueUrl"]
+        self.sqs_arn = self.sqs.get_queue_attributes(QueueUrl=self.sqs_url, AttributeNames=['QueueArn'])["Attributes"]["QueueArn"]
+        self.sns.subscribe(TopicArn=self.topic_arn, Protocol='sqs', Endpoint=self.sqs_arn)
+        self.sns.subscribe(TopicArn=self.topic_arn, Protocol='sms', Endpoint="+12223334444")
+
 
     def tearDown(self):
         self.mock_aws.stop()
@@ -65,7 +77,9 @@ class TestHermesProfiler(unittest.TestCase):
 
         # Assert that an SNS notification is sent
         notifications = self.sns.list_subscriptions_by_topic(TopicArn=self.topic_arn)['Subscriptions']
-        self.assertEqual(len(notifications), 1)
+        messages = self.sqs.receive_message(QueueUrl=self.sqs_url, MaxNumberOfMessages=10)["Messages"]
+
+        self.assertEqual(len(messages), 1)
 
 
     def test_extract_item_info(self):
