@@ -1,7 +1,9 @@
+import os
 import boto3
 import requests
-from botocore.exceptions import ClientError
-import os
+from bs4 import BeautifulSoup
+from boto3.dynamodb.conditions import Key
+from datetime import datetime
 
 dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
@@ -17,85 +19,86 @@ def lambda_handler(event, context):
         'https://' + os.environ['API_GATEWAY_REGION2'] + '.execute-api.' + os.environ['AWS_REGION'] + '.amazonaws.com/prod/'
     ]
 
-    # Fetch responses from both API Gateways
-    responses = []
+    timestamp = int(datetime.now().timestamp())
+
+    items = []
     for url in api_gateway_urls:
         try:
             response = requests.get(url)
             if response.status_code == 200:
-                responses.append(response.json())
+                soup = BeautifulSoup(response.text, 'html.parser')
+                items.extend(extract_item_info(soup))
         except requests.exceptions.RequestException as e:
             print(f"Error fetching response from {url}: {e}")
 
-    # Process each response
-    for response in responses:
-        item_id = response['item_id']
-        title = response['title']
-        url = response['url']
-        price = response['price']
-        color = response['color']
+    unique_items = {item['item_id']: item for item in items}.values()
 
-        # Check if the item already exists in DynamoDB
-        try:
-            item = table.get_item(Key={'item_id': item_id})
-            existing_item = item.get('Item')
-        except ClientError as e:
-            print(f"Error getting item from DynamoDB: {e}")
-            existing_item = None
+    # Get the previous greatest timestamp from DynamoDB
+    response = table.query(
+        KeyConditionExpression=Key('item_id').eq('TIMESTAMP'),
+        ScanIndexForward=False,
+        Limit=1
+    )
+    previous_timestamp = response['Items'][0]['timestamp'] if response['Items'] else 0
 
-        if existing_item:
-            # Compare the existing item with the new response
-            if (
-                existing_item['title'] != title or
-                existing_item['url'] != url or
-                existing_item['price'] != price or
-                existing_item['color'] != color
-            ):
-                # Update the item in DynamoDB
-                try:
-                    table.put_item(Item={
-                        'item_id': item_id,
-                        'title': title,
-                        'url': url,
-                        'price': price,
-                        'color': color
-                    })
-                except ClientError as e:
-                    print(f"Error updating item in DynamoDB: {e}")
+    new_items = []
+    for item in unique_items:
+        item_id = item['item_id']
+        title = item['title']
+        color = item['color']
+        url = item['url']
+        price = item['price']
+        unavailable = item['unavailable']
 
-                # Send a notification via SNS if the title contains a specific word
-                if 'keyword' in title.lower():
-                    try:
-                        sns.publish(
-                            TopicArn=os.environ['SNS_TOPIC_ARN'],
-                            Message=f"Item updated: {title}"
-                        )
-                    except ClientError as e:
-                        print(f"Error sending SNS notification: {e}")
-        else:
-            # Add the new item to DynamoDB
-            try:
+        if not unavailable:
+            response = table.query(
+                KeyConditionExpression=Key('item_id').eq(item_id) & Key('timestamp').eq(previous_timestamp)
+            )
+            existing_item = response['Items'][0] if response['Items'] else None
+
+            if not existing_item:
                 table.put_item(Item={
                     'item_id': item_id,
+                    'timestamp': timestamp,
                     'title': title,
+                    'color': color,
                     'url': url,
                     'price': price,
-                    'color': color
+                    'unavailable': unavailable
                 })
-            except ClientError as e:
-                print(f"Error adding item to DynamoDB: {e}")
+                new_items.append(item)
 
-            # Send a notification via SNS if the title contains a specific word
-            if 'keyword' in title.lower():
-                try:
-                    sns.publish(
-                        TopicArn=os.environ['SNS_TOPIC_ARN'],
-                        Message=f"New item added: {title}"
-                    )
-                except ClientError as e:
-                    print(f"Error sending SNS notification: {e}")
+    # Update the greatest timestamp in DynamoDB
+    table.put_item(Item={'item_id': 'TIMESTAMP', 'timestamp': timestamp})
+
+    if new_items:
+        new_items_message = "\n".join([f"- {item['title']}" for item in new_items])
+        sns.publish(
+            TopicArn=os.environ['SNS_TOPIC_ARN'],
+            Subject="New Items Added",
+            Message=f"The following new items have been added:\n{new_items_message}"
+        )
 
     return {
         'statusCode': 200,
         'body': 'Lambda function executed successfully'
     }
+
+def extract_item_info(soup):
+    items = []
+    for div in soup.find_all('div', class_='product-grid-list-item'):
+        item_id = div['id'].replace('grid-product-', '')
+        title = div.find('span', class_='product-item-name').text.strip()
+        color = div.find('span', class_='product-item-colors').text.split(':')[-1].strip()
+        url = div.find('a')['href']
+        price = int(div.find('span', class_='price').text.replace('AU$', '').replace(',', ''))
+        unavailable = 'Unavailable' in div.text
+        items.append({
+            'item_id': item_id,
+            'title': title,
+            'color': color,
+            'url': url,
+            'price': price,
+            'unavailable': unavailable
+        })
+    return items
