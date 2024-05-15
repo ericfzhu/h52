@@ -36,6 +36,7 @@ def lambda_handler(event, context):
             print(f"Error fetching response from {url}: {e}")
     
     unique_items = {item['item_id']: item for item in items}.values()
+    print(f"Unique items: {unique_items}")
     
     # Get the previous greatest timestamp from DynamoDB
     response = table.query(
@@ -55,14 +56,6 @@ def lambda_handler(event, context):
         unavailable = item['unavailable']
         
         if not unavailable:
-            table.put_item(Item={
-                'item_id': item_id,
-                'timestamp': timestamp,
-                'title': title,
-                'color': color,
-                'url': url,
-                'price': price,
-            })
             
             response = table.query(
                 KeyConditionExpression=Key('item_id').eq(item_id),
@@ -73,7 +66,17 @@ def lambda_handler(event, context):
             
             if not existing_item or existing_item['timestamp'] < previous_timestamp:
                 new_items.append(item)
-
+                
+            table.put_item(Item={
+                'item_id': item_id,
+                'timestamp': timestamp,
+                'title': title,
+                'color': color,
+                'url': url,
+                'price': price,
+            })
+            print(f"Added item {item_id} to DynamoDB")
+    print(new_items)
     if new_items:
         new_items_message = "\n\n".join([f"""
                                        {item['title']} - {item['color']} - {item['price']}

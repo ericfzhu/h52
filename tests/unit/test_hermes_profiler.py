@@ -77,7 +77,8 @@ class TestHermesProfiler(unittest.TestCase):
 
         # Assert that an SNS notification is sent
         notifications = self.sns.list_subscriptions_by_topic(TopicArn=self.topic_arn)['Subscriptions']
-        messages = self.sqs.receive_message(QueueUrl=self.sqs_url, MaxNumberOfMessages=10)["Messages"]
+        response = self.sqs.receive_message(QueueUrl=self.sqs_url, MessageSystemAttributeNames=['All'], MaxNumberOfMessages=10)
+        messages = response.get("Messages", [])
 
         self.assertEqual(len(messages), 1)
 
