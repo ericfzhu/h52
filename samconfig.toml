@@ -19,7 +19,7 @@ confirm_changeset = true
 resolve_s3 = true
 s3_prefix = "hermes"
 region = "us-west-2"
-image_repositories = []
+image_repositories = ["InventoryProfilerFunction=928432195661.dkr.ecr.us-west-2.amazonaws.com/hermesb33a4006/inventoryprofilerfunctionc9725e11repo"]
 disable_rollback = true
 
 [default.package.parameters]

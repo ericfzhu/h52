@@ -7,12 +7,13 @@ Resources:
   InventoryProfilerFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: functions/hermes_profiler/
-      Handler: app.lambda_handler
-      Runtime: python3.9
+      PackageType: Image
+      # CodeUri: functions/hermes_profiler/
+      # Handler: app.lambda_handler
+      # Runtime: python3.9
       Timeout: 60
       Architectures:
-        - arm64
+        - x86_64
       Events:
         ScheduleEvent:
           Type: ScheduleV2
@@ -30,6 +31,10 @@ Resources:
           API_GATEWAY_REGION1: !Ref APIGatewayRegion1
           # API_GATEWAY_REGION2: !If [DeployToRegion2, !Ref APIGatewayRegion2, ""]
           SNS_TOPIC_ARN: !Ref SNSTopic
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: functions/hermes_profiler/
+      DockerTag: python3.9-v1
 
   APIGatewayRegion1:
     Type: AWS::Serverless::Api
