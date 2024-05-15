@@ -3,10 +3,6 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   Online Hermes Inventory for AU
 
-Conditions:
-  DeployToRegion1: !Equals [!Ref "AWS::Region", "us-east-1"]
-  DeployToRegion2: !Equals [!Ref "AWS::Region", "ap-southeast-2"]
-
 Resources:
   InventoryProfilerFunction:
     Type: AWS::Serverless::Function
@@ -31,49 +27,30 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_TABLE: !Ref DynamoDBTable
-          API_GATEWAY_REGION1: !If [DeployToRegion1, !Ref APIGatewayRegion1, ""]
-          API_GATEWAY_REGION2: !If [DeployToRegion2, !Ref APIGatewayRegion2, ""]
+          API_GATEWAY_REGION1: !Ref APIGatewayRegion1
+          # API_GATEWAY_REGION2: !If [DeployToRegion2, !Ref APIGatewayRegion2, ""]
           SNS_TOPIC_ARN: !Ref SNSTopic
 
   APIGatewayRegion1:
     Type: AWS::Serverless::Api
-    Condition: DeployToRegion1
     Properties:
       StageName: prod
       EndpointConfiguration:
         Type: REGIONAL
+      OpenApiVersion: "3.0.1"
+      Auth:
+        DefaultAuthorizer: AWS_IAM
       DefinitionBody:
         openapi: "3.0.1"
         info:
           title: "APIGatewayRegion1"
         paths:
-          /:
+          /$default:
             x-amazon-apigateway-any-method:
+              isDefaultRoute: true
               x-amazon-apigateway-integration:
                 uri: "https://www.hermes.com/au/en/category/women/bags-and-small-leather-goods/bags-and-clutches/"
-                httpMethod: "ANY"
-                type: "http_proxy"
-                requestParameters:
-                  integration.request.header.X-My-X-Forwarded-For: "'4.4.4.4'"
-              responses: {}
-
-  APIGatewayRegion2:
-    Type: AWS::Serverless::Api
-    Condition: DeployToRegion2
-    Properties:
-      StageName: prod
-      EndpointConfiguration:
-        Type: REGIONAL
-      DefinitionBody:
-        openapi: "3.0.1"
-        info:
-          title: "APIGatewayRegion2"
-        paths:
-          /:
-            x-amazon-apigateway-any-method:
-              x-amazon-apigateway-integration:
-                uri: "https://www.hermes.com/au/en/category/women/bags-and-small-leather-goods/bags-and-clutches/"
-                httpMethod: "ANY"
+                httpMethod: "GET"
                 type: "http_proxy"
                 requestParameters:
                   integration.request.header.X-My-X-Forwarded-For: "'4.4.4.4'"

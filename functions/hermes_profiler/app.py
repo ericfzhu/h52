@@ -16,7 +16,7 @@ def lambda_handler(event, context):
     # List of API Gateway URLs in different regions
     api_gateway_urls = [
         'https://' + os.environ['API_GATEWAY_REGION1'] + '.execute-api.' + os.environ['AWS_REGION'] + '.amazonaws.com/prod/',
-        'https://' + os.environ['API_GATEWAY_REGION2'] + '.execute-api.' + os.environ['AWS_REGION'] + '.amazonaws.com/prod/'
+        'https://fu5te2nc0l.execute-api.ap-southeast-2.amazonaws.com/prod'
     ]
     
     timestamp = int(datetime.now().timestamp())
@@ -55,6 +55,15 @@ def lambda_handler(event, context):
         unavailable = item['unavailable']
         
         if not unavailable:
+            table.put_item(Item={
+                'item_id': item_id,
+                'timestamp': timestamp,
+                'title': title,
+                'color': color,
+                'url': url,
+                'price': price,
+            })
+            
             response = table.query(
                 KeyConditionExpression=Key('item_id').eq(item_id),
                 ScanIndexForward=False,
@@ -63,19 +72,13 @@ def lambda_handler(event, context):
             existing_item = response['Items'][0] if response['Items'] else None
             
             if not existing_item or existing_item['timestamp'] < previous_timestamp:
-                table.put_item(Item={
-                    'item_id': item_id,
-                    'timestamp': timestamp,
-                    'title': title,
-                    'color': color,
-                    'url': url,
-                    'price': price,
-                    'unavailable': unavailable
-                })
                 new_items.append(item)
-    
+
     if new_items:
-        new_items_message = "\n".join([f"- {item['title']}" for item in new_items])
+        new_items_message = "\n\n".join([f"""
+                                       {item['title']} - {item['color']} - {item['price']}
+                                       https://hermes.com{item['url']}
+""" for item in new_items])
         try:
             response = sns.publish(
                 TopicArn=os.environ['SNS_TOPIC_ARN'],
@@ -85,6 +88,7 @@ def lambda_handler(event, context):
             print(f"SNS publish response: {response}")
         except Exception as e:
             print(f"Error publishing to SNS: {str(e)}")
+
     
     return {
         'statusCode': 200,
