@@ -9,13 +9,30 @@ from botocore.awsrequest import AWSRequest
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from fake_useragent import UserAgent
 
 dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
 
+def wait_for_frame(driver, timeout, selector):
+    try:
+        frame = WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+        )
+        driver.switch_to.frame(frame)
+        return True
+    except (TimeoutException, NoSuchElementException):
+        return False
+
 def lambda_handler(event, context):
     table_name = os.environ['DYNAMODB_TABLE']
     table = dynamodb.Table(table_name)
+    ua = UserAgent()
+    user_agent = ua.random
 
     service = Service(executable_path=r'/opt/chromedriver')
     chrome_options = webdriver.ChromeOptions()
@@ -30,7 +47,10 @@ def lambda_handler(event, context):
     chrome_options.add_argument("window-size=2560x1440")
     chrome_options.add_argument("--user-data-dir=/tmp/chrome-user-data")
     chrome_options.add_argument("--remote-debugging-port=9222")
-    chrome_options.add_argument('user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36')
+    chrome_options.add_argument(f'--user-agent={user_agent}')
+    chrome_options.add_argument("start-maximized")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
 
     chrome = webdriver.Chrome(service=service, options=chrome_options)
 
@@ -58,14 +78,21 @@ def lambda_handler(event, context):
             chrome.execute_cdp_cmd("Network.setExtraHTTPHeaders", {"headers": signed_headers})
 
             chrome.get(url)
+            captcha_iframe_selector = "iframe[name^='a-'][src^='https://www.google.com/recaptcha/api2/anchor?']"
+            if wait_for_frame(chrome, 10, captcha_iframe_selector):
+                # CAPTCHA iframe found, solve the CAPTCHA
+                WebDriverWait(chrome, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[@id='recaptcha-anchor']"))).click()
+                chrome.switch_to.default_content()  # Switch back to the main content
+            else:
+                print("CAPTCHA iframe not found on the page.")
+
             page_source = chrome.page_source
+            print(f"Page source: {page_source}")
             if "Blocked" not in page_source:
                 soup = BeautifulSoup(page_source, 'html.parser')
                 items.extend(extract_item_info(soup))
-                print(f"Page source: {page_source}")
             else:
                 print(f"Error fetching response from {url}: Request unsuccessful")
-                print(f"Page source: {page_source}")
         except requests.exceptions.RequestException as e:
             print(f"Error fetching response from {url}: {e}")
     
@@ -79,7 +106,10 @@ def lambda_handler(event, context):
     
     # Get previous inventory status
     response = table.query(
-        KeyConditionExpression=Key('item_id').eq('TIMESTAMP'),
+        IndexName='TimestampIndex',
+        KeyConditionExpression='#ts = :ts',
+        ExpressionAttributeNames={'#ts': 'timestamp'},
+        ExpressionAttributeValues={':ts': 'timestamp'},
         ScanIndexForward=False,
         Limit=1
     )
@@ -87,6 +117,7 @@ def lambda_handler(event, context):
     
     new_items = []
     for item in unique_items:
+        uuid = f"{item['item_id']}{timestamp}"
         item_id = item['item_id']
         title = item['title']
         color = item['color']
@@ -96,16 +127,19 @@ def lambda_handler(event, context):
         
         if not unavailable:
             response = table.query(
-                KeyConditionExpression=Key('item_id').eq(item_id),
+                IndexName='ItemIdIndex',
+                KeyConditionExpression=Key('item_id').eq(item_id) & Key('timestamp').eq(previous_timestamp),
                 ScanIndexForward=False,
                 Limit=1
             )
+
             existing_item = response['Items'][0] if response['Items'] else None
-            
-            if not existing_item or existing_item['timestamp'] < previous_timestamp:
+
+            if not existing_item:
                 new_items.append(item)
 
             table.put_item(Item={
+                'uuid': uuid,
                 'item_id': item_id,
                 'timestamp': timestamp,
                 'title': title,
