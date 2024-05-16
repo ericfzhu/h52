@@ -33,8 +33,8 @@ def lambda_handler(event, context):
     chrome = webdriver.Chrome(service=service, options=chrome_options)
 
     api_gateway_urls = [
-        # 'https://' + os.environ['API_GATEWAY_REGION1'] + '.execute-api.' + os.environ['AWS_REGION'] + '.amazonaws.com/prod/',
-        'https://fu5te2nc0l.execute-api.ap-southeast-2.amazonaws.com/Test'
+        'https://' + os.environ['API_GATEWAY_REGION1'] + '.execute-api.' + os.environ['AWS_REGION'] + '.amazonaws.com/prod/',
+        'https://fu5te2nc0l.execute-api.ap-southeast-2.amazonaws.com/prod'
     ]
     
     timestamp = int(datetime.now().timestamp())
@@ -42,15 +42,6 @@ def lambda_handler(event, context):
 
     for url in api_gateway_urls:
         try:
-            # headers = {
-            #     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) AppleWebKit/601.3.9 (KHTML, like Gecko) Version/9.0.2 Safari/601.3.9',
-            #     'Accept-Language': 'en-US,en;q=0.9'
-            # }
-            # response = requests.get(url, headers=headers)
-            # if response.status_code == 200:
-            #     soup = BeautifulSoup(response.text, 'html.parser')
-            #     items.extend(extract_item_info(soup))
-            
             chrome.get(url)
             page_source = chrome.page_source
             if "Request unsuccessful" not in page_source:
@@ -64,7 +55,7 @@ def lambda_handler(event, context):
     unique_items = {item['item_id']: item for item in items}.values()
     print(f"Unique items: {unique_items}")
     
-    # Get the previous greatest timestamp from DynamoDB
+    # Get previous inventory status
     response = table.query(
         KeyConditionExpression=Key('item_id').eq('TIMESTAMP'),
         ScanIndexForward=False,
@@ -101,7 +92,6 @@ def lambda_handler(event, context):
                 'price': price,
             })
             print(f"Added item {item_id} to DynamoDB")
-    print(new_items)
     if new_items:
         new_items_message = "\n\n".join([f"{item['title']} - {item['color']} - {item['price']}\nhttps://hermes.com{item['url']}" for item in new_items])
         try:
