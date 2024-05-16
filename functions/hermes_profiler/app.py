@@ -16,6 +16,7 @@ def lambda_handler(event, context):
     table_name = os.environ['DYNAMODB_TABLE']
     table = dynamodb.Table(table_name)
 
+    service = Service(executable_path=r'/opt/chromedriver')
     chrome_options = webdriver.ChromeOptions()
     chrome_options.binary_location = "/opt/chrome/chrome"
     chrome_options.add_argument("--headless")
@@ -29,11 +30,11 @@ def lambda_handler(event, context):
     chrome_options.add_argument("--user-data-dir=/tmp/chrome-user-data")
     chrome_options.add_argument("--remote-debugging-port=9222")
 
-    chrome = webdriver.Chrome("/opt/chromedriver", options=chrome_options)
+    chrome = webdriver.Chrome(service=service, options=chrome_options)
 
     api_gateway_urls = [
-        'https://' + os.environ['API_GATEWAY_REGION1'] + '.execute-api.' + os.environ['AWS_REGION'] + '.amazonaws.com/prod/',
-        'https://fu5te2nc0l.execute-api.ap-southeast-2.amazonaws.com/prod'
+        # 'https://' + os.environ['API_GATEWAY_REGION1'] + '.execute-api.' + os.environ['AWS_REGION'] + '.amazonaws.com/prod/',
+        'https://fu5te2nc0l.execute-api.ap-southeast-2.amazonaws.com/Test'
     ]
     
     timestamp = int(datetime.now().timestamp())
@@ -102,10 +103,7 @@ def lambda_handler(event, context):
             print(f"Added item {item_id} to DynamoDB")
     print(new_items)
     if new_items:
-        new_items_message = "\n\n".join([f"""
-                                       {item['title']} - {item['color']} - {item['price']}
-                                       https://hermes.com{item['url']}
-""" for item in new_items])
+        new_items_message = "\n\n".join([f"{item['title']} - {item['color']} - {item['price']}\nhttps://hermes.com{item['url']}" for item in new_items])
         try:
             response = sns.publish(
                 TopicArn=os.environ['SNS_TOPIC_ARN'],

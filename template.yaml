@@ -3,6 +3,10 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   Online Hermes Inventory for AU
 
+Globals:
+  Function:
+    MemorySize: 512
+
 Resources:
   InventoryProfilerFunction:
     Type: AWS::Serverless::Function
