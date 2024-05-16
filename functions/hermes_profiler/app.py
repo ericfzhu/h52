@@ -15,6 +15,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from fake_useragent import UserAgent
 
+from typing import Union
+
 dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
 
@@ -109,16 +111,16 @@ def lambda_handler(event, context):
         IndexName='TimestampIndex',
         KeyConditionExpression='#ts = :ts',
         ExpressionAttributeNames={'#ts': 'timestamp'},
-        ExpressionAttributeValues={':ts': 'timestamp'},
+        ExpressionAttributeValues={':ts': 0},
         ScanIndexForward=False,
         Limit=1
     )
-    previous_timestamp = response['Items'][0]['timestamp'] if response['Items'] else 0
+    previous_timestamp: Union[int, float] = response['Items'][0]['timestamp'] if response['Items'] else 0
     
     new_items = []
     for item in unique_items:
         uuid = f"{item['item_id']}{timestamp}"
-        item_id = item['item_id']
+        item_id: str = item['item_id']
         title = item['title']
         color = item['color']
         url = item['url']
@@ -126,14 +128,14 @@ def lambda_handler(event, context):
         unavailable = item['unavailable']
         
         if not unavailable:
-            response = table.query(
-                IndexName='ItemIdIndex',
-                KeyConditionExpression=Key('item_id').eq(item_id) & Key('timestamp').eq(previous_timestamp),
-                ScanIndexForward=False,
-                Limit=1
-            )
-
-            existing_item = response['Items'][0] if response['Items'] else None
+            response = table.get_item(
+                Key={
+                    'uuid': {
+                        'S': f"{item['item_id']}{previous_timestamp}"
+                        }
+                    })
+            # print(response)
+            existing_item = response.get('Item')
 
             if not existing_item:
                 new_items.append(item)
