@@ -12,9 +12,6 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
-      # CodeUri: functions/hermes_profiler/
-      # Handler: app.lambda_handler
-      # Runtime: python3.9
       Timeout: 60
       Architectures:
         - x86_64
@@ -33,7 +30,6 @@ Resources:
         Variables:
           DYNAMODB_TABLE: !Ref DynamoDBTable
           API_GATEWAY_REGION1: !Ref APIGatewayRegion1
-          # API_GATEWAY_REGION2: !If [DeployToRegion2, !Ref APIGatewayRegion2, ""]
           SNS_TOPIC_ARN: !Ref SNSTopic
     Metadata:
       Dockerfile: Dockerfile
@@ -54,16 +50,15 @@ Resources:
         info:
           title: "APIGatewayRegion1"
         paths:
-          /$default:
-            x-amazon-apigateway-any-method:
-              isDefaultRoute: true
+          /:
+            get:
               x-amazon-apigateway-integration:
                 uri: "https://www.hermes.com/au/en/category/women/bags-and-small-leather-goods/bags-and-clutches/"
                 httpMethod: "GET"
                 type: "http_proxy"
                 requestParameters:
                   integration.request.header.X-My-X-Forwarded-For: "'4.4.4.4'"
-              responses: {}
+                responses: {}
 
   DynamoDBTable:
     Type: AWS::Serverless::SimpleTable

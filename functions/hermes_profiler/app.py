@@ -3,11 +3,12 @@ import boto3
 import requests
 from bs4 import BeautifulSoup
 from boto3.dynamodb.conditions import Key
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
+
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
 
 dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
@@ -29,12 +30,13 @@ def lambda_handler(event, context):
     chrome_options.add_argument("window-size=2560x1440")
     chrome_options.add_argument("--user-data-dir=/tmp/chrome-user-data")
     chrome_options.add_argument("--remote-debugging-port=9222")
+    chrome_options.add_argument('user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36')
 
     chrome = webdriver.Chrome(service=service, options=chrome_options)
 
     api_gateway_urls = [
         'https://' + os.environ['API_GATEWAY_REGION1'] + '.execute-api.' + os.environ['AWS_REGION'] + '.amazonaws.com/prod/',
-        'https://fu5te2nc0l.execute-api.ap-southeast-2.amazonaws.com/prod'
+        'https://fu5te2nc0l.execute-api.ap-southeast-2.amazonaws.com/prod/'
     ]
     
     timestamp = int(datetime.now().timestamp())
@@ -42,18 +44,38 @@ def lambda_handler(event, context):
 
     for url in api_gateway_urls:
         try:
+            print(f"Fetching response from {url}")
+
+            # Sign request with SigV4
+            region = url.split('.')[2]
+            request = AWSRequest(method='GET', url=url, headers={'Content-Type': 'application/json'})
+            credentials = boto3.Session().get_credentials()
+            SigV4Auth(credentials, 'execute-api', region).add_auth(request)
+            signed_headers = dict(request.headers.items())
+
+            # Set the signed headers using execute_cdp_cmd
+            chrome.execute_cdp_cmd("Network.enable", {})
+            chrome.execute_cdp_cmd("Network.setExtraHTTPHeaders", {"headers": signed_headers})
+
             chrome.get(url)
             page_source = chrome.page_source
-            if "Request unsuccessful" not in page_source:
+            if "Blocked" not in page_source:
                 soup = BeautifulSoup(page_source, 'html.parser')
                 items.extend(extract_item_info(soup))
+                print(f"Page source: {page_source}")
             else:
                 print(f"Error fetching response from {url}: Request unsuccessful")
+                print(f"Page source: {page_source}")
         except requests.exceptions.RequestException as e:
             print(f"Error fetching response from {url}: {e}")
     
     unique_items = {item['item_id']: item for item in items}.values()
-    print(f"Unique items: {unique_items}")
+    if(len(unique_items) == 0):
+        print("No items found")
+        return {
+            'statusCode': 200,
+            'body': 'No items found'
+        }
     
     # Get previous inventory status
     response = table.query(
