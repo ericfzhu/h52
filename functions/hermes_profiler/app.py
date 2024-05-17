@@ -130,10 +130,9 @@ def lambda_handler(event, context):
         if not unavailable:
             response = table.get_item(
                 Key={
-                    'uuid': {
-                        'S': f"{item['item_id']}{previous_timestamp}"
-                        }
-                    })
+                    'uuid': f"{item['item_id']}{previous_timestamp}"
+                }
+            )
             # print(response)
             existing_item = response.get('Item')
 
