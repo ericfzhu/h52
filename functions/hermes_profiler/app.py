@@ -108,14 +108,16 @@ def lambda_handler(event, context):
         }
     
     # Get previous inventory status
-    response = table.query(
-        IndexName='TimestampIndex2',
-        KeyConditionExpression=Key('timestamp').gt(0),
-        ScanIndexForward=False,
-        Limit=1
-    )
-    previous_timestamp: Union[int, float] = response['Items'][0]['timestamp'] if response['Items'] else 0
-    print(f"Previous timestamp: {previous_timestamp}")
+    # response = table.query(
+    #     IndexName='TimestampIndex2',
+    #     KeyConditionExpression=Key('timestamp').gt(0),
+    #     ScanIndexForward=False,
+    #     Limit=1
+    # )
+    # previous_timestamp: Union[int, float] = response['Items'][0]['timestamp'] if response['Items'] else 0
+    response = table.get_item(Key={'uuid': 'maxtimestamp'})
+    max_timestamp = response.get('Item', {}).get('timestamp', 0)
+    print(f"Previous timestamp: {max_timestamp}")
     
     new_items = []
     for item in unique_items:
@@ -130,7 +132,7 @@ def lambda_handler(event, context):
         if not unavailable:
             response = table.get_item(
                 Key={
-                    'uuid': f"{item['item_id']}{previous_timestamp}"
+                    'uuid': f"{item['item_id']}{max_timestamp}"
                 }
             )
             print(response)
@@ -149,6 +151,11 @@ def lambda_handler(event, context):
                 'price': price,
             })
             print(f"Added item {item_id} to DynamoDB")
+
+    table.put_item(Item={
+            'uuid': 'maxtimestamp',
+            'timestamp': timestamp
+        })
     if new_items:
         new_items_message = "\n\n".join([f"{item['title']} - {item['color']} - {item['price']}\nhttps://hermes.com{item['url']}" for item in new_items])
         try:

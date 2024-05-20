@@ -75,20 +75,6 @@ Resources:
         - AttributeName: uuid
           KeyType: HASH
       GlobalSecondaryIndexes:
-        - IndexName: TimestampIndex
-          KeySchema:
-            - AttributeName: timestamp
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-        - IndexName: TimestampIndex2
-          KeySchema:
-            - AttributeName: uuid
-              KeyType: HASH
-            - AttributeName: timestamp
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
         - IndexName: ItemIdIndex
           KeySchema:
             - AttributeName: item_id
