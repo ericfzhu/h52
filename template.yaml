@@ -58,7 +58,7 @@ Resources:
                 type: "http_proxy"
                 requestParameters:
                   integration.request.header.X-My-X-Forwarded-For: "'4.4.4.4'"
-                  integration.request.header.Referrer: "'https://www.hermes.com/au/en/'"
+                  integration.request.header.referer: "'https://www.hermes.com/au/en/'"
                 responses: {}
 
   DynamoDBTable:

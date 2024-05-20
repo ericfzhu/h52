@@ -89,7 +89,7 @@ def lambda_handler(event, context):
                 print("CAPTCHA iframe not found on the page.")
 
             page_source = chrome.page_source
-            print(f"Page source: {page_source}")
+            # print(f"Page source: {page_source}")
 
             if "Blocked" not in page_source:
                 soup = BeautifulSoup(page_source, 'html.parser')
@@ -135,7 +135,7 @@ def lambda_handler(event, context):
                     'uuid': f"{item['item_id']}{max_timestamp}"
                 }
             )
-            print(response)
+            # print(response)
             existing_item = response.get('Item')
 
             if not existing_item:
