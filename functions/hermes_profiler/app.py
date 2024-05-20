@@ -109,7 +109,7 @@ def lambda_handler(event, context):
     
     # Get previous inventory status
     response = table.query(
-        IndexName='TimestampIndex',
+        IndexName='TimestampIndex2',
         KeyConditionExpression=Key('timestamp').gt(0),
         ScanIndexForward=False,
         Limit=1

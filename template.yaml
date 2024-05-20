@@ -58,6 +58,7 @@ Resources:
                 type: "http_proxy"
                 requestParameters:
                   integration.request.header.X-My-X-Forwarded-For: "'4.4.4.4'"
+                  integration.request.header.Referrer: "'https://www.hermes.com/au/en/'"
                 responses: {}
 
   DynamoDBTable:
@@ -78,6 +79,14 @@ Resources:
           KeySchema:
             - AttributeName: timestamp
               KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: TimestampIndex2
+          KeySchema:
+            - AttributeName: uuid
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
           Projection:
             ProjectionType: ALL
         - IndexName: ItemIdIndex
