@@ -90,6 +90,7 @@ def lambda_handler(event, context):
 
             page_source = chrome.page_source
             print(f"Page source: {page_source}")
+
             if "Blocked" not in page_source:
                 soup = BeautifulSoup(page_source, 'html.parser')
                 items.extend(extract_item_info(soup))
@@ -109,13 +110,12 @@ def lambda_handler(event, context):
     # Get previous inventory status
     response = table.query(
         IndexName='TimestampIndex',
-        KeyConditionExpression='#ts = :ts',
-        ExpressionAttributeNames={'#ts': 'timestamp'},
-        ExpressionAttributeValues={':ts': 0},
+        KeyConditionExpression=Key('timestamp').gt(0),
         ScanIndexForward=False,
         Limit=1
     )
     previous_timestamp: Union[int, float] = response['Items'][0]['timestamp'] if response['Items'] else 0
+    print(f"Previous timestamp: {previous_timestamp}")
     
     new_items = []
     for item in unique_items:
@@ -133,7 +133,7 @@ def lambda_handler(event, context):
                     'uuid': f"{item['item_id']}{previous_timestamp}"
                 }
             )
-            # print(response)
+            print(response)
             existing_item = response.get('Item')
 
             if not existing_item:
@@ -157,7 +157,7 @@ def lambda_handler(event, context):
                 Subject="New Items Added",
                 Message=f"The following new items have been added:\n{new_items_message}"
             )
-            print(f"SNS publish response: {response}")
+            print(f"SNS publish response: {response}\n\n{new_items_message}")
         except Exception as e:
             print(f"Error publishing to SNS: {str(e)}")
 
