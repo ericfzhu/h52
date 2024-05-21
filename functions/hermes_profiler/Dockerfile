@@ -23,11 +23,10 @@ RUN yum install -y $(cat /tmp/chrome-deps.txt)
 # Install Python dependencies for function
 COPY requirements.txt /tmp/
 RUN python3 -m pip install --upgrade pip -q
-RUN python3 -m pip install -r /tmp/requirements.txt -q 
+RUN python3 -m pip install -r /tmp/requirements.txt -q
 
 
 COPY --from=stage /opt/chrome /opt/chrome
 COPY --from=stage /opt/chromedriver /opt/chromedriver
 COPY app.py ${LAMBDA_TASK_ROOT}
-
-CMD [ "app.lambda_handler" ]
+CMD ["app.lambda_handler"]
