@@ -6,7 +6,7 @@ const cabin = Cabin({ subsets: ['latin'] });
 
 export const dynamic = 'force-static';
 export const metadata: Metadata = {
-	title: 'Hermes 52',
+	title: 'H52',
 	description: 'Leather goods push notification service',
 };
 
