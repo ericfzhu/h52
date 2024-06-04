@@ -13,7 +13,7 @@
 /.next/
 /out/
 
-# Created by https://www.gitignore.io/api/osx,linux,python,windows,pycharm,visualstudiocode
+/data/
 .aws-sam
 
 test_venv

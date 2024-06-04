@@ -32,6 +32,8 @@ def lambda_handler(event, context):
     
     # Iterate over the sorted items and mark new items for each timestamp
     for item in items:
+        if item['uuid'] == 'maxtimestamp':
+            continue
         item_id = item['item_id']
         if item_id not in latest_items:
             item['is_new'] = '1'
