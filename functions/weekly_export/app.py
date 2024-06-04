@@ -3,6 +3,8 @@ import csv
 import io
 import os
 import requests
+import pandas as pd
+from collections import deque
 
 dynamodb = boto3.resource('dynamodb')
 s3 = boto3.client('s3')
@@ -29,19 +31,32 @@ def lambda_handler(event, context):
     
     # Create a dictionary to store the latest occurrence of each item_id
     latest_items = {}
+
+    timestamp_queue = deque([items[0]['timestamp']])
     
     # Iterate over the sorted items and mark new items for each timestamp
     for item in items:
         if item['uuid'] == 'maxtimestamp':
             continue
+        
         item_id = item['item_id']
-        if item_id not in latest_items:
+        timestamp = item['timestamp']
+        
+        if timestamp not in latest_items:
+            latest_items[timestamp] = set()
+        
+        if timestamp_queue[0] != timestamp and timestamp not in timestamp_queue:
+            timestamp_queue.append(timestamp)
+            if len(timestamp_queue) > 2:
+                timestamp_queue.popleft()
+        
+        prev_max_timestamp = timestamp_queue[0]
+        
+        if item_id not in latest_items[prev_max_timestamp]:
             item['is_new'] = '1'
-            latest_items[item_id] = item
+            latest_items[timestamp].add(item_id)
         else:
             item['is_new'] = '0'
-            if item['timestamp'] > latest_items[item_id]['timestamp']:
-                latest_items[item_id] = item
 
     csv_buffer = io.StringIO()
     fieldnames = ['uuid', 'item_id', 'timestamp', 'title', 'color', 'url', 'price', 'is_new']
