@@ -84,10 +84,10 @@ export default function Home() {
 
 	console.log(items);
 	return (
-		<main className="flex min-h-screen w-full flex-col items-center justify-center gap-20 bg-[#F6F1EB] px-24">
+		<main className="flex min-h-screen w-full flex-col items-center gap-20 bg-[#F6F1EB] px-24">
 			{/* <h1 className="text-black">H52</h1> */}
 			<h1 className="pt-12">
-				<Image src="/logo.png" alt="H52" width="500" height="500" className="w-36" />
+				<Image src="/logo.png" alt="H52" width="500" height="222" className="h-auto w-36" />
 			</h1>
 			<div className="w-full max-w-xl text-[#474747]">
 				<div className="flex gap-8">
