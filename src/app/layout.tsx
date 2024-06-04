@@ -1,23 +1,24 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { Cabin } from 'next/font/google';
+import './globals.css';
 
-const inter = Inter({ subsets: ["latin"] });
+const cabin = Cabin({ subsets: ['latin'] });
 
+export const dynamic = 'force-static';
 export const metadata: Metadata = {
-  title: "Hermes52",
-  description: "Leather goods push notification service",
+	title: 'Hermes 52',
+	description: 'Leather goods push notification service',
 };
 
 export default function RootLayout({
-  children,
+	children,
 }: Readonly<{
-  children: React.ReactNode;
+	children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en">
-      <link rel="icon" href="/icon.png" />
-      <body className={inter.className}>{children}</body>
-    </html>
-  );
+	return (
+		<html lang="en">
+			<link rel="icon" href="/icon.png" />
+			<body className={cabin.className}>{children}</body>
+		</html>
+	);
 }

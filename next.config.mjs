@@ -1,12 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-	output: "export",
+	output: 'export',
 	reactStrictMode: true,
 	swcMinify: true,
 	webpack(config) {
 		config.experiments = {
-		asyncWebAssembly: true,
-		layers: true,
+			asyncWebAssembly: true,
+			layers: true,
 		};
 
 		return config;
