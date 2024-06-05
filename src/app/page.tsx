@@ -23,7 +23,7 @@ function getWeekNumber(date: Date) {
 	return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
 }
 
-const formatDate = (key: string, groupBy: 'day' | 'week'): string => {
+const formatDate = (key: string, groupBy: 'day' | 'week' | 'month'): string => {
 	if (groupBy === 'day') {
 		const [year, month, day] = key.split('-');
 		return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleString('en-US', {
@@ -31,20 +31,25 @@ const formatDate = (key: string, groupBy: 'day' | 'week'): string => {
 			day: '2-digit',
 			year: 'numeric',
 		});
-	} else {
+	} else if (groupBy === 'week') {
 		const [year, week] = key.split('-W');
 		return `Week ${week}, ${year}`;
+	} else {
+		const [year, month] = key.split('-');
+		return new Date(Number(year), Number(month) - 1).toLocaleString('en-US', {
+			month: 'short',
+			year: 'numeric',
+		});
 	}
 };
 
 export default function Home() {
 	const [items, setItems] = useState<Item[]>([]);
-	const [groupBy, setGroupBy] = useState<'day' | 'week'>('day');
-	// console.log(items);
+	const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
 
 	useEffect(() => {
 		const fetchData = async () => {
-			const response = await fetch('/output_updated.csv');
+			const response = await fetch('/output.csv');
 			const csvData = await response.text();
 
 			const { data } = Papa.parse<Item>(csvData, {
@@ -63,10 +68,13 @@ export default function Home() {
 	const groupedItems = filteredItems.reduce(
 		(acc, item) => {
 			const date = new Date(item.timestamp * 1000);
-			const key = groupBy === 'day' ? date.toISOString().slice(0, 10) : `${date.getFullYear()}-W${getWeekNumber(date)}`;
-
-			if (!acc[key]) {
-				acc[key] = [];
+			let key;
+			if (groupBy === 'day') {
+				key = date.toISOString().slice(0, 10);
+			} else if (groupBy === 'week') {
+				key = `${date.getFullYear()}-W${getWeekNumber(date)}`;
+			} else {
+				key = `${date.getFullYear()}-${date.getMonth() + 1}`;
 			}
 
 			if (!acc[key]) {
@@ -82,7 +90,6 @@ export default function Home() {
 		{} as Record<string, Item[]>,
 	);
 
-	console.log(items);
 	return (
 		<main className="flex min-h-screen w-full flex-col items-center gap-20 bg-[#F6F1EB] px-24">
 			{/* <h1 className="text-black">H52</h1> */}
@@ -96,6 +103,9 @@ export default function Home() {
 					</button>
 					<button className={cn('uppercase', groupBy === 'week' ? 'font-bold' : '')} onClick={() => setGroupBy('week')}>
 						Week
+					</button>
+					<button className={cn('uppercase', groupBy === 'month' ? 'font-bold' : '')} onClick={() => setGroupBy('month')}>
+						Month
 					</button>
 				</div>
 				{Object.entries(groupedItems)
