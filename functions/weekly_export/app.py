@@ -1,3 +1,4 @@
+from datetime import datetime
 import boto3
 import csv
 import io
@@ -57,6 +58,17 @@ def lambda_handler(event, context):
             latest_items[timestamp].add(item_id)
         else:
             item['is_new'] = '0'
+
+    # Only keep the items where is_new == '1'
+    items = [item for item in items if item['is_new'] == '1']
+
+    # Convert timestamp to date and add it as a new column
+    for item in items:
+        item['date'] = datetime.fromtimestamp(int(item['timestamp'])).date()
+
+    # Drop duplicates based on 'item_id' and 'date'
+    seen = set()
+    items = [item for item in items if not (item['item_id'], item['date']) in seen and not seen.add((item['item_id'], item['date']))]
 
     csv_buffer = io.StringIO()
     fieldnames = ['uuid', 'item_id', 'timestamp', 'title', 'color', 'url', 'price', 'is_new']
