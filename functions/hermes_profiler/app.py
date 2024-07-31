@@ -1,3 +1,4 @@
+from io import BytesIO
 import os
 import boto3
 import requests
@@ -19,6 +20,7 @@ from typing import Union
 
 dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
+s3 = boto3.client('s3')
 
 def wait_for_frame(driver, timeout, selector):
     try:
@@ -32,6 +34,7 @@ def wait_for_frame(driver, timeout, selector):
 
 def lambda_handler(event, context):
     table_name = os.environ['DYNAMODB_TABLE']
+    s3_bucket_name = os.environ['S3_BUCKET_NAME']
     table = dynamodb.Table(table_name)
     ua = UserAgent()
     user_agent = ua.random
@@ -128,18 +131,25 @@ def lambda_handler(event, context):
         url = item['url']
         price = item['price']
         unavailable = item['unavailable']
-        
+        image_url = item['image_url']
+
         if not unavailable:
             response = table.get_item(
                 Key={
                     'uuid': f"{item['item_id']}{max_timestamp}"
                 }
             )
-            # print(response)
             existing_item = response.get('Item')
 
             if not existing_item:
                 new_items.append(item)
+
+            # Download and upload image to S3
+            if image_url:
+                object_key = f"{item_id}/{timestamp}.jpg"
+                s3_url = download_and_upload_to_s3(image_url, s3_bucket_name, object_key)
+            else:
+                s3_url = None
 
             table.put_item(Item={
                 'uuid': uuid,
@@ -149,8 +159,9 @@ def lambda_handler(event, context):
                 'color': color,
                 'url': url,
                 'price': price,
+                's3_image_url': s3_url
             })
-            print(f"Added item {item_id} to DynamoDB")
+            print(f"Added item {item_id} to DynamoDB with S3 image URL: {s3_url}")
 
     table.put_item(Item={
             'uuid': 'maxtimestamp',
@@ -183,12 +194,32 @@ def extract_item_info(soup):
         url = div.find('a')['href']
         price = int(div.find('span', class_='price').text.replace('AU$', '').replace(',', ''))
         unavailable = 'Unavailable' in div.text
+        
+        # Extract image URL
+        img_tag = div.find('img')
+        image_url = img_tag['src'] if img_tag else None
+        
         items.append({
             'item_id': item_id,
             'title': title,
             'color': color,
             'url': url,
             'price': price,
-            'unavailable': unavailable
+            'unavailable': unavailable,
+            'image_url': image_url
         })
     return items
+
+def download_and_upload_to_s3(image_url, bucket_name, object_key):
+    response = requests.get(image_url)
+    if response.status_code == 200:
+        s3.upload_fileobj(
+            BytesIO(response.content),
+            bucket_name,
+            object_key,
+            ExtraArgs={'ContentType': response.headers['Content-Type']}
+        )
+        return f"s3://{bucket_name}/{object_key}"
+    else:
+        print(f"Failed to download image from {image_url}")
+        return None

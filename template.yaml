@@ -26,11 +26,14 @@ Resources:
                 - SNSPublishMessagePolicy:
                       TopicName: !GetAtt SNSTopic.TopicName
                 - AmazonAPIGatewayInvokeFullAccess
+                - S3CrudPolicy:
+                      BucketName: !Ref ImageS3Bucket
             Environment:
                 Variables:
                     DYNAMODB_TABLE: !Ref DynamoDBTable
                     API_GATEWAY_REGION1: !Ref APIGatewayRegion1
                     SNS_TOPIC_ARN: !Ref SNSTopic
+                    S3_BUCKET_NAME: !Ref ImageS3Bucket
         Metadata:
             Dockerfile: Dockerfile
             DockerContext: functions/hermes_profiler/
@@ -79,6 +82,16 @@ Resources:
                       Principal: '*'
                       Action: s3:GetObject
                       Resource: !Sub 'arn:aws:s3:::${ExportS3Bucket}/*'
+
+    ImageS3Bucket:
+        Type: AWS::S3::Bucket
+        Properties:
+            BucketName: hermes-inventory-images
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: true
+                BlockPublicPolicy: true
+                IgnorePublicAcls: true
+                RestrictPublicBuckets: true
 
     APIGatewayRegion1:
         Type: AWS::Serverless::Api
