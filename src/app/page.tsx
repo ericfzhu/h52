@@ -91,12 +91,12 @@ export default function Home() {
 	);
 
 	return (
-		<main className="flex min-h-screen w-full flex-col items-center gap-20 bg-[#F6F1EB] px-24">
+		<main className="flex min-h-screen w-full flex-col items-center justify-center gap-20 bg-[#F6F1EB] px-24">
 			{/* <h1 className="text-black">H52</h1> */}
 			<h1 className="pt-12">
 				<Image src="/logo.png" alt="H52" width="500" height="222" className="h-auto w-36" />
 			</h1>
-			<div className="w-full max-w-xl text-[#474747]">
+			{/* <div className="w-full max-w-xl text-[#474747]">
 				<div className="flex gap-8">
 					<button className={cn('uppercase', groupBy === 'day' ? 'font-bold' : '')} onClick={() => setGroupBy('day')}>
 						Day
@@ -132,7 +132,7 @@ export default function Home() {
 							</div>
 						</div>
 					))}
-			</div>
+			</div> */}
 		</main>
 	);
 }
