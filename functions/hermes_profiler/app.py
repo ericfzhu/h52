@@ -15,6 +15,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from fake_useragent import UserAgent
+from botocore.exceptions import ClientError
 
 from typing import Union
 
@@ -92,7 +93,7 @@ def lambda_handler(event, context):
                 print("CAPTCHA iframe not found on the page.")
 
             page_source = chrome.page_source
-            # print(f"Page source: {page_source}")
+            print(f"Page source: {page_source}")
 
             if "Blocked" not in page_source:
                 soup = BeautifulSoup(page_source, 'html.parser')
@@ -146,7 +147,7 @@ def lambda_handler(event, context):
 
             # Download and upload image to S3
             if image_url:
-                object_key = f"{item_id}/{timestamp}.jpg"
+                object_key = f"{item_id}.jpg"
                 s3_url = download_and_upload_to_s3(image_url, s3_bucket_name, object_key)
             else:
                 s3_url = None
@@ -211,15 +212,28 @@ def extract_item_info(soup):
     return items
 
 def download_and_upload_to_s3(image_url, bucket_name, object_key):
-    response = requests.get(image_url)
-    if response.status_code == 200:
-        s3.upload_fileobj(
-            BytesIO(response.content),
-            bucket_name,
-            object_key,
-            ExtraArgs={'ContentType': response.headers['Content-Type']}
-        )
+    # First, check if the object already exists
+    try:
+        s3.head_object(Bucket=bucket_name, Key=object_key)
+        print(f"Object {object_key} already exists in bucket {bucket_name}. Skipping upload.")
         return f"s3://{bucket_name}/{object_key}"
-    else:
-        print(f"Failed to download image from {image_url}")
-        return None
+    except ClientError as e:
+        if e.response['Error']['Code'] == '404':
+            # The object does not exist, proceed with download and upload
+            response = requests.get(image_url)
+            if response.status_code == 200:
+                s3.upload_fileobj(
+                    BytesIO(response.content),
+                    bucket_name,
+                    object_key,
+                    ExtraArgs={'ContentType': response.headers['Content-Type']}
+                )
+                print(f"Successfully uploaded {object_key} to bucket {bucket_name}")
+                return f"s3://{bucket_name}/{object_key}"
+            else:
+                print(f"Failed to download image from {image_url}")
+                return None
+        else:
+            # Something else went wrong
+            print(f"Error checking object existence: {e}")
+            return None
