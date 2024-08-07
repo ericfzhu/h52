@@ -1,0 +1,16 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR Repository for Hermes Inventory
+
+Resources:
+    ECRRepository:
+        Type: AWS::ECR::Repository
+        Properties:
+            RepositoryName: hermes-inventory-repo
+
+Outputs:
+    ECRRepositoryUri:
+        Description: 'URI of the ECR repository'
+        Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepository}
+    ECRRepositoryName:
+        Description: 'Name of the ECR repository'
+        Value: !Ref ECRRepository

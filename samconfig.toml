@@ -17,10 +17,12 @@ lint = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
-s3_prefix = "hermes"
+s3_prefix = "h52"
 region = "us-west-2"
-image_repositories = ["InventoryProfilerFunction=928432195661.dkr.ecr.us-west-2.amazonaws.com/hermesb33a4006/inventoryprofilerfunctionc9725e11repo"]
+image_repositories = ["HermesProfilerFunction=928432195661.dkr.ecr.us-west-2.amazonaws.com/h52af07eee8/hermesprofilerfunctiona2d77734repo"]
 disable_rollback = true
+stack_name = "h52"
+parameter_overrides = "SecondApiGatewayUrl=\"https://fu5te2nc0l.execute-api.ap-southeast-2.amazonaws.com/prod/\""
 
 [default.package.parameters]
 resolve_s3 = true

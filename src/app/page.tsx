@@ -92,7 +92,6 @@ export default function Home() {
 
 	return (
 		<main className="flex min-h-screen w-full flex-col items-center justify-center gap-20 bg-[#F6F1EB] px-24">
-			{/* <h1 className="text-black">H52</h1> */}
 			<h1 className="pt-12">
 				<Image src="/logo.png" alt="H52" width="500" height="222" className="h-auto w-36" />
 			</h1>

@@ -1,0 +1,225 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: H52 AU Inventory using Fargate with API Gateway
+
+Resources:
+    ECSCluster:
+        Type: AWS::ECS::Cluster
+        Properties:
+            ClusterName: HermesInventoryCluster
+
+    ECSTaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            Family: hermes-inventory-task
+            Cpu: '256'
+            Memory: '512'
+            NetworkMode: awsvpc
+            RequiresCompatibilities:
+                - FARGATE
+            ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+            TaskRoleArn: !GetAtt ECSTaskRole.Arn
+            ContainerDefinitions:
+                - Name: hermes-inventory-container
+                  Image: !Ref ECRRepositoryUri
+                  Essential: true
+                  Environment:
+                      - Name: API_GATEWAY_URL
+                        Value: !Sub 'https://${APIGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/'
+                      - Name: S3_BUCKET_NAME
+                        Value: !Ref InventoryS3Bucket
+                      - Name: SNS_TOPIC_ARN
+                        Value: !Ref SNSTopic
+                  LogConfiguration:
+                      LogDriver: awslogs
+                      Options:
+                          awslogs-group: /ecs/hermes-inventory
+                          awslogs-region: !Ref AWS::Region
+                          awslogs-stream-prefix: hermes-inventory
+
+    CloudWatchLogsGroup:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: /ecs/hermes-inventory
+            RetentionInDays: 7
+
+    ECSTaskExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service: ecs-tasks.amazonaws.com
+                      Action: sts:AssumeRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+    ECSTaskRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service: ecs-tasks.amazonaws.com
+                      Action: sts:AssumeRole
+            Policies:
+                - PolicyName: HermesInventoryTaskPolicy
+                  PolicyDocument:
+                      Version: '2012-10-17'
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - s3:GetObject
+                                - s3:PutObject
+                            Resource: !Sub ${InventoryS3Bucket.Arn}/*
+                          - Effect: Allow
+                            Action:
+                                - sns:Publish
+                            Resource: !Ref SNSTopic
+                          - Effect: Allow
+                            Action:
+                                - execute-api:Invoke
+                            Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*'
+
+    ScheduledRule:
+        Type: AWS::Events::Rule
+        Properties:
+            Description: 'Schedule Fargate task to run every 10 minutes'
+            ScheduleExpression: 'rate(10 minutes)'
+            State: 'ENABLED'
+            Targets:
+                - Arn: !GetAtt ECSCluster.Arn
+                  RoleArn: !GetAtt EventsRole.Arn
+                  Id: 'TargetFargateTask'
+                  EcsParameters:
+                      TaskDefinitionArn: !Ref ECSTaskDefinition
+                      LaunchType: 'FARGATE'
+                      NetworkConfiguration:
+                          AwsvpcConfiguration:
+                              AssignPublicIp: 'ENABLED'
+                              Subnets:
+                                  - !Ref PublicSubnet
+
+    EventsRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service: events.amazonaws.com
+                      Action: sts:AssumeRole
+            Policies:
+                - PolicyName: EventsRolePolicy
+                  PolicyDocument:
+                      Version: '2012-10-17'
+                      Statement:
+                          - Effect: Allow
+                            Action: 'ecs:RunTask'
+                            Resource: !Ref ECSTaskDefinition
+                          - Effect: Allow
+                            Action: 'iam:PassRole'
+                            Resource: '*'
+
+    InventoryS3Bucket:
+        Type: AWS::S3::Bucket
+        Properties:
+            BucketName: !Sub 'hermes-inventory-data-${AWS::AccountId}'
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: true
+                BlockPublicPolicy: true
+                IgnorePublicAcls: true
+                RestrictPublicBuckets: true
+
+    SNSTopic:
+        Type: AWS::SNS::Topic
+        Properties:
+            DisplayName: H52
+
+    VPC:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 10.0.0.0/16
+            EnableDnsHostnames: true
+            EnableDnsSupport: true
+
+    PublicSubnet:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [0, !GetAZs '']
+            CidrBlock: 10.0.1.0/24
+            MapPublicIpOnLaunch: true
+
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+
+    AttachGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId: !Ref VPC
+            InternetGatewayId: !Ref InternetGateway
+
+    PublicRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId: !Ref VPC
+
+    PublicRoute:
+        Type: AWS::EC2::Route
+        DependsOn: AttachGateway
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+
+    PublicSubnetRouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            SubnetId: !Ref PublicSubnet
+            RouteTableId: !Ref PublicRouteTable
+
+    APIGateway:
+        Type: AWS::Serverless::Api
+        Properties:
+            StageName: prod
+            EndpointConfiguration:
+                Type: REGIONAL
+            Auth:
+                DefaultAuthorizer: AWS_IAM
+            DefinitionBody:
+                openapi: '3.0.1'
+                info:
+                    title: 'HermesInventoryAPI'
+                paths:
+                    /:
+                        get:
+                            x-amazon-apigateway-integration:
+                                uri: 'https://www.hermes.com/au/en/category/women/bags-and-small-leather-goods/bags-and-clutches/'
+                                httpMethod: 'GET'
+                                type: 'http_proxy'
+                                requestParameters:
+                                    integration.request.header.X-My-X-Forwarded-For: "'4.4.4.4'"
+                                    integration.request.header.referer: "'https://www.hermes.com/au/en/'"
+                                responses: {}
+
+Parameters:
+    ECRRepositoryUri:
+        Type: String
+        Description: URI of the ECR repository containing the Docker image
+
+Outputs:
+    APIGatewayUrl:
+        Description: 'URL of the API Gateway endpoint'
+        Value: !Sub 'https://${APIGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/'
+    S3BucketName:
+        Description: 'Name of the S3 bucket where inventory data is stored'
+        Value: !Ref InventoryS3Bucket
+    SNSTopicArn:
+        Description: 'ARN of the SNS topic for notifications'
+        Value: !Ref SNSTopic

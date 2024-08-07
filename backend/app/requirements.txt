@@ -4,3 +4,4 @@ requests
 selenium
 pandas
 fake-useragent
+undetected-chromedriver
